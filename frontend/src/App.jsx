@@ -4,7 +4,7 @@ import { FaThermometerHalf, FaChartLine, FaExclamationTriangle, FaShieldAlt } fr
 import { FiActivity, FiBarChart2 } from 'react-icons/fi';
 import './App.css';
 
-const API_URL = 'https://gas-leak-detection-backend.onrender.com/getlatestdata';
+const API_URL = 'https://gas-leak-detection-backend.onrender.com/fetchall';
 const HISTORY_LENGTH = 30; // Number of data points to show in the chart
 
 function App() {
