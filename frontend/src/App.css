@@ -1,42 +1,175 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+.App {
   text-align: center;
+  padding: 0 1rem;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.App-header {
+  margin-bottom: 2rem;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+.App-header h1 {
+  font-size: 2.5rem;
+  font-weight: 300;
+  margin-bottom: 0.5rem;
+}
+
+.last-updated {
+    font-size: 0.9rem;
+    color: var(--text-secondary-color);
+}
+
+/* --- CARDS --- */
+.error-card, .loading-card {
+    background-color: var(--card-background-color);
+    padding: 2rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    font-size: 1.2rem;
+}
+
+.error-card {
+    color: var(--danger-color);
+    border-color: var(--danger-color);
+}
+
+/* --- GRID LAYOUT --- */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+/* --- STATUS CARD --- */
+.status-card {
+  grid-column: 1 / -1; /* Span full width */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 1.5rem;
+  border-radius: 12px;
+  transition: all 0.3s ease-in-out;
+  border: 1px solid;
+}
+
+.status-card h2 {
+  font-size: 1.2rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--text-color);
+}
+
+.status-card p {
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.status-card.safe {
+  background: linear-gradient(45deg, rgba(0, 255, 137, 0.1), rgba(0, 255, 137, 0));
+  border-color: var(--safe-color);
+  box-shadow: 0 0 15px rgba(0, 255, 137, 0.3);
+  color: var(--safe-color);
+}
+
+.status-card.warning {
+  background: linear-gradient(45deg, rgba(255, 200, 0, 0.1), rgba(255, 200, 0, 0));
+  border-color: var(--warning-color);
+  box-shadow: 0 0 15px rgba(255, 200, 0, 0.3);
+  color: var(--warning-color);
+}
+
+.status-card.danger {
+  background: linear-gradient(45deg, rgba(255, 45, 45, 0.1), rgba(255, 45, 45, 0));
+  border-color: var(--danger-color);
+  box-shadow: 0 0 20px rgba(255, 45, 45, 0.5);
+  color: var(--danger-color);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 20px rgba(255, 45, 45, 0.5);
   }
-  to {
-    transform: rotate(360deg);
+  50% {
+    box-shadow: 0 0 30px rgba(255, 45, 45, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 20px rgba(255, 45, 45, 0.5);
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+/* --- DATA ITEMS & CHART --- */
+.data-item {
+  background-color: var(--card-background-color);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.data-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+.data-item .data-icon {
+  font-size: 2rem;
+  color: var(--text-secondary-color);
+  margin-bottom: 0.5rem;
+}
+
+.data-item h3 {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text-secondary-color);
+}
+
+.data-item p {
+  font-size: 2rem;
+  font-weight: 500;
+}
+
+.data-item span {
+    font-size: 0.8rem;
+    color: var(--text-secondary-color);
+}
+
+.data-item.main-reading p.raw-value {
+    font-size: 3rem;
+    font-weight: 700;
+}
+.raw-value.safe { color: var(--safe-color); }
+.raw-value.warning { color: var(--warning-color); }
+.raw-value.danger { color: var(--danger-color); }
+
+
+.chart-container {
+  grid-column: 1 / -1; /* Span full width */
+  padding-top: 2rem;
+}
+
+/* --- RESPONSIVENESS --- */
+@media (max-width: 768px) {
+  body {
+    padding: 1rem;
   }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
+  .App-header h1 {
+    font-size: 1.8rem;
+  }
+  .dashboard-grid {
+    grid-template-columns: 1fr; /* Single column on mobile */
+  }
+  .status-card {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .status-card p {
+    font-size: 2rem;
+  }
 }
