@@ -22,6 +22,19 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# --- FastAPI Application Setup ---
+app = FastAPI(title="IoT Sensor API")
+
+#---- Cross Origin Resource Sharing (CORS) Configuration ----#
+CORS_ORIGINS = ["http://localhost:5173","*"]
+# Allow all origins for simplicity; adjust in production for security
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # --- Database Model (Table Schema) ---
 
 class SensorData(Base):
@@ -63,19 +76,7 @@ class SensorDataResponse(SensorDataCreate):
     class Config:
         orm_mode = True # Helps Pydantic work with ORM models like SQLAlchemy
 
-# --- FastAPI Application Setup ---
-
-app = FastAPI(title="IoT Sensor API")
-
-# Configure CORS (Cross-Origin Resource Sharing)
-# This allows our React frontend (running on a different port) to communicate with the backend.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # The default port for Vite dev server
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# --- Database Session Dependency ---
 
 # --- Dependency for Database Session ---
 
