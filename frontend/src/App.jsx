@@ -21,20 +21,30 @@ function App() {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const newData = await response.json();
+        const allData = await response.json(); // Fetched data is an array
+
+        // --- FIX IS HERE ---
+        // 1. Check if the array is empty or not valid
+        if (!Array.isArray(allData) || allData.length === 0) {
+          throw new Error("No data available from the sensor yet.");
+        }
+
+        // 2. Get the latest data point, which is the FIRST element of the array
+        const latestData = allData[0];
+        // --- END OF FIX ---
         
-        // Ensure data is valid before setting state
-        if (typeof newData.raw !== 'number') {
-          throw new Error("Invalid data format received from server.");
+        // Ensure the latestData object is valid before setting state
+        if (typeof latestData.raw !== 'number') {
+          throw new Error("Invalid data format in the received object.");
         }
         
-        setData(newData);
+        setData(latestData); // Use the latest data object
         setLastUpdated(new Date());
 
-        // Update status based on raw value
-        if (newData.raw > 3500) {
+        // Update status based on raw value from the latest data
+        if (latestData.raw > 3500) {
           setStatus('danger');
-        } else if (newData.raw > 2500) {
+        } else if (latestData.raw > 2500) {
           setStatus('warning');
         } else {
           setStatus('safe');
@@ -42,7 +52,7 @@ function App() {
 
         // Update history for the chart
         setHistory(prevHistory => {
-          const newPoint = { time: new Date().toLocaleTimeString(), raw: newData.raw };
+          const newPoint = { time: new Date().toLocaleTimeString(), raw: latestData.raw };
           const updatedHistory = [...prevHistory, newPoint];
           if (updatedHistory.length > HISTORY_LENGTH) {
             return updatedHistory.slice(1);
@@ -54,7 +64,7 @@ function App() {
 
       } catch (e) {
         console.error("Failed to fetch data:", e);
-        setError("Could not connect to the sensor data feed. Please check the backend service.");
+        setError(`Could not retrieve sensor data. Please check the backend service. (Error: ${e.message})`);
       }
     };
 
