@@ -1,123 +1,149 @@
 import os
+import json
+import datetime
 from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Column, Integer, Float, DateTime, String
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import create_engine, Column, Integer, Float, DateTime
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel
-import datetime
+import paho.mqtt.client as mqtt
 
 # --- Environment and Database Configuration ---
-
-# Load environment variables from .env file
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
-
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable not set")
 
-# SQLAlchemy setup
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# --- FastAPI Application Setup ---
-app = FastAPI(title="IoT Sensor API")
+# --- MQTT Broker Configuration ---
+MQTT_BROKER = "test.mosquitto.org"
+MQTT_PORT = 1883
+MQTT_TOPIC = "master/backend/collection"
 
-#---- Cross Origin Resource Sharing (CORS) Configuration ----#
-CORS_ORIGINS = ["http://localhost:5173","*"]
-# Allow all origins for simplicity; adjust in production for security
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-# --- Database Model (Table Schema) ---
-
+# --- Database Model (Updated to match MQTT payload) ---
 class SensorData(Base):
     """
-    This class defines the structure of the 'sensor_data' table in the database.
+    This class defines the structure of the 'sensor_data' table in the database,
+    matching the combined data from your IoT devices.
     """
     __tablename__ = "sensor_data"
 
     id = Column(Integer, primary_key=True, index=True)
-    raw = Column(Integer)
-    mean = Column(Float)
-    stddev = Column(Float)
-    slope = Column(Float)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    mean = Column(Float, nullable=True)
+    min = Column(Integer, nullable=True)
+    max = Column(Integer, nullable=True)
+    variance = Column(Float, nullable=True)
+    humidity = Column(Float, nullable=True)
+    temp = Column(Float, nullable=True)
 
 # Create the table in the database if it doesn't exist
 Base.metadata.create_all(bind=engine)
 
-
-# --- Pydantic Models (Data Validation) ---
-
-class SensorDataCreate(BaseModel):
-    """
-    Defines the expected data structure for incoming sensor data via the API.
-    """
-    raw: int
-    mean: float
-    stddev: float
-    slope: float
-
-class SensorDataResponse(SensorDataCreate):
+# --- Pydantic Models (Data Validation for API Response) ---
+class SensorDataResponse(BaseModel):
     """
     Defines the data structure for data being sent out from the API.
-    Includes the ID and timestamp.
     """
     id: int
     timestamp: datetime.datetime
+    mean: float | None = None
+    min: int | None = None
+    max: int | None = None
+    variance: float | None = None
+    humidity: float | None = None
+    temp: float | None = None
 
     class Config:
         orm_mode = True # Helps Pydantic work with ORM models like SQLAlchemy
 
+# --- FastAPI Application Setup ---
+app = FastAPI(title="IoT Sensor Backend")
+
+# CORS Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # --- Database Session Dependency ---
-
-# --- Dependency for Database Session ---
-
 def get_db():
-    """
-    This function creates and yields a new database session for each request.
-    It ensures the session is always closed, even if an error occurs.
-    """
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
+# --- MQTT Client Logic ---
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print("Connected to MQTT Broker!")
+        client.subscribe(MQTT_TOPIC)
+        print(f"Subscribed to topic: {MQTT_TOPIC}")
+    else:
+        print(f"Failed to connect, return code {rc}\n")
+
+def on_message(client, userdata, msg):
+    print(f"Message received on topic {msg.topic}")
+    try:
+        # 1. Decode and parse the JSON payload
+        payload = json.loads(msg.payload.decode())
+        print("Payload:", payload)
+
+        # 2. Get a new database session
+        db = SessionLocal()
+
+        # 3. Create a new SensorData record
+        db_data = SensorData(**payload)
+
+        # 4. Add, commit, and close the session
+        db.add(db_data)
+        db.commit()
+        db.refresh(db_data)
+        print(f"Successfully added data to DB with ID: {db_data.id}")
+
+    except json.JSONDecodeError:
+        print("Error: Could not decode JSON from payload.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        if 'db' in locals() and db:
+            db.close()
+
+# --- FastAPI Events for MQTT Lifecycle ---
+@app.on_event("startup")
+async def startup_event():
+    global client
+    client = mqtt.Client()
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect(MQTT_BROKER, MQTT_PORT, 60)
+    client.loop_start() # Starts a background thread to handle MQTT network traffic
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    client.loop_stop()
+    client.disconnect()
+    print("MQTT client disconnected.")
+
 # --- API Endpoints ---
-
-@app.post("/senddata", response_model=SensorDataResponse)
-def create_sensor_data(data: SensorDataCreate, db: Session = Depends(get_db)):
-    """
-    Endpoint to receive sensor data and store it in the database.
-    - Path: /senddata
-    - Method: POST
-    - Body: { "raw": 0, "mean": 710, "stddev": 1225.73, "slope": -118.62 }
-    """
-    db_data = SensorData(**data.dict())
-    db.add(db_data)
-    db.commit()
-    db.refresh(db_data)
-    return db_data
-
-@app.get("/fetchall", response_model=list[SensorDataResponse])
-def read_sensor_data(skip: int = 0, limit: int = 1000, db: Session = Depends(get_db)):
+@app.get("/fetchdata", response_model=list[SensorDataResponse])
+def read_all_sensor_data(skip: int = 0, limit: int = 1000, db: Session = Depends(get_db)):
     """
     Endpoint to retrieve all sensor data points from the database.
-    - Path: /fetchall
+    - Path: /fetchdata
     - Method: GET
     """
     # Fetch the most recent records first
     all_data = db.query(SensorData).order_by(SensorData.timestamp.desc()).offset(skip).limit(limit).all()
+    if not all_data:
+        raise HTTPException(status_code=404, detail="No data found")
     return all_data
-
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the IoT Sensor Data API"}
