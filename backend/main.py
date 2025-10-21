@@ -35,10 +35,18 @@ class SensorData(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
-    mean = Column(Float, nullable=True)
-    min = Column(Integer, nullable=True)
-    max = Column(Integer, nullable=True)
-    variance = Column(Float, nullable=True)
+    worker_1_mean = Column(Float, nullable=True)
+    worker_1_min = Column(Integer, nullable=True)
+    worker_1_max = Column(Integer, nullable=True)
+    worker_1_variance = Column(Float, nullable=True)
+    worker_2_mean = Column(Float, nullable=True)
+    worker_2_min = Column(Integer, nullable=True)
+    worker_2_max = Column(Integer, nullable=True)
+    worker_2_variance = Column(Float, nullable=True)
+    worker_3_mean = Column(Float, nullable=True)
+    worker_3_min = Column(Integer, nullable=True)
+    worker_3_max = Column(Integer, nullable=True)
+    worker_3_variance = Column(Float, nullable=True)
     humidity = Column(Float, nullable=True)
     temp = Column(Float, nullable=True)
 
@@ -52,15 +60,23 @@ class SensorDataResponse(BaseModel):
     """
     id: int
     timestamp: datetime.datetime
-    mean: float | None = None
-    min: int | None = None
-    max: int | None = None
-    variance: float | None = None
+    worker_1_mean: float | None = None
+    worker_1_min: int | None = None
+    worker_1_max: int | None = None
+    worker_1_variance: float | None = None
+    worker_2_mean: float | None = None
+    worker_2_min: int | None = None
+    worker_2_max: int | None = None
+    worker_2_variance: float | None = None
+    worker_3_mean: float | None = None
+    worker_3_min: int | None = None
+    worker_3_max: int | None = None
+    worker_3_variance: float | None = None
     humidity: float | None = None
     temp: float | None = None
 
     class Config:
-        orm_mode = True # Helps Pydantic work with ORM models like SQLAlchemy
+        from_attributes = True # Helps Pydantic work with ORM models like SQLAlchemy
 
 # --- FastAPI Application Setup ---
 app = FastAPI(title="IoT Sensor Backend")
@@ -93,6 +109,7 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, msg):
     print(f"Message received on topic {msg.topic}")
+    db = None # Initialize db to None for robust error handling
     try:
         # 1. Decode and parse the JSON payload
         payload = json.loads(msg.payload.decode())
@@ -102,6 +119,7 @@ def on_message(client, userdata, msg):
         db = SessionLocal()
 
         # 3. Create a new SensorData record
+        # This works because your payload keys match the SensorData model
         db_data = SensorData(**payload)
 
         # 4. Add, commit, and close the session
@@ -115,7 +133,7 @@ def on_message(client, userdata, msg):
     except Exception as e:
         print(f"An error occurred: {e}")
     finally:
-        if 'db' in locals() and db:
+        if db:
             db.close()
 
 # --- FastAPI Events for MQTT Lifecycle ---
