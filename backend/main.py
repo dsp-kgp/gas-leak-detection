@@ -150,12 +150,12 @@ def load_model():
     if os.path.exists(MODEL_FILENAME):
         try:
             ml_pipeline = joblib.load(MODEL_FILENAME)
-            print(f"✅ Successfully loaded model from {MODEL_FILENAME}")
+            print(f" Successfully loaded model from {MODEL_FILENAME}")
         except Exception as e:
-            print(f"⚠️ Error loading model '{MODEL_FILENAME}': {e}")
+            print(f" Error loading model '{MODEL_FILENAME}': {e}")
             ml_pipeline = None
     else:
-        print(f"ℹ️ Model file '{MODEL_FILENAME}' not found. Prediction will use placeholder logic.")
+        print(f" Model file '{MODEL_FILENAME}' not found. Prediction will use placeholder logic.")
         ml_pipeline = None
 
 # --- ML Prediction Logic ---
@@ -201,11 +201,11 @@ def run_ml_prediction(data_dict: dict) -> tuple[str, float]:
             else: # Low confidence leak
                 status = "SAFE"
 
-            print(f"🧠 Model Prediction - Status: {status}, Probability: {leak_probability:.4f}")
+            print(f" Model Prediction - Status: {status}, Probability: {leak_probability:.4f}")
             return status, float(leak_probability) # Ensure float
 
         except Exception as e:
-            print(f"⚠️ Error during model prediction: {e}. Falling back to placeholder.")
+            print(f" Error during model prediction: {e}. Falling back to placeholder.")
             # Fallback if prediction fails for any reason
             return run_placeholder_prediction(data_dict)
     else:
@@ -229,7 +229,7 @@ def run_placeholder_prediction(data_dict: dict) -> tuple[str, float]:
 def train_model_task():
     """Fetches LABELED data, trains, evaluates, and saves the model pipeline."""
     global ml_pipeline
-    print("\n⏳ Starting background model training task...")
+    print("\n Starting background model training task...")
     db: Session | None = None # Ensure db is defined for finally block
     try:
         db = SessionLocal()
@@ -238,7 +238,7 @@ def train_model_task():
         data_query = db.query(SensorData).filter(SensorData.is_leak != None).order_by(SensorData.timestamp).all()
 
         if not data_query or len(data_query) < 20: # Need a reasonable amount of data
-            print("❌ Not enough labeled data found in 'sensor_data' table for training (need at least 20 rows).")
+            print(" Not enough labeled data found in 'sensor_data' table for training (need at least 20 rows).")
             return
 
         # 2. Convert to DataFrame
@@ -247,21 +247,21 @@ def train_model_task():
 
         # 3. Ensure Labels Exist and Convert
         if TARGET_COLUMN not in df.columns:
-             print(f"❌ ERROR: Target column '{TARGET_COLUMN}' missing. Training aborted.")
+             print(f" ERROR: Target column '{TARGET_COLUMN}' missing. Training aborted.")
              return
         df = df.dropna(subset=[TARGET_COLUMN]) # Remove rows where label is explicitly NULL
         df[TARGET_COLUMN] = df[TARGET_COLUMN].astype(int) # Convert True/False/1/0 to integer
 
         # Check for both classes
         label_counts = df[TARGET_COLUMN].value_counts()
-        print("\n📊 Label Distribution for Training:")
+        print("\n Label Distribution for Training:")
         print(label_counts)
         if len(label_counts) < 2 or 1 not in label_counts or 0 not in label_counts:
-             print(f"❌ ERROR: Training requires examples of both '{TARGET_COLUMN}=0' and '{TARGET_COLUMN}=1'. Found: {list(label_counts.index)}. Aborting.")
+             print(f" ERROR: Training requires examples of both '{TARGET_COLUMN}=0' and '{TARGET_COLUMN}=1'. Found: {list(label_counts.index)}. Aborting.")
              return
 
         # 4. Feature Engineering (MUST MATCH PREDICTION)
-        print("🛠️ Performing feature engineering...")
+        print(" Performing feature engineering...")
         df['spatial_variance'] = df[['worker_1_mean', 'worker_2_mean', 'worker_3_mean']].var(axis=1, skipna=True).fillna(0)
         df['max_all_sensors'] = df[['worker_1_mean', 'worker_2_mean', 'worker_3_mean']].max(axis=1, skipna=True).fillna(0)
         df['avg_all_sensors'] = df[['worker_1_mean', 'worker_2_mean', 'worker_3_mean']].mean(axis=1, skipna=True).fillna(0)
@@ -272,20 +272,20 @@ def train_model_task():
         y = df[TARGET_COLUMN]
 
         # 6. Temporal Train/Test Split (Important!)
-        print("🔪 Splitting data temporally (80% train, 20% test)...")
+        print(" Splitting data temporally (80% train, 20% test)...")
         split_index = int(len(X) * 0.8)
         X_train, X_test = X.iloc[:split_index], X.iloc[split_index:]
         y_train, y_test = y.iloc[:split_index], y.iloc[split_index:]
 
         if X_train.empty or X_test.empty:
-            print("❌ Not enough data for a meaningful train/test split after filtering.")
+            print(" Not enough data for a meaningful train/test split after filtering.")
             return
 
         print(f"   Train set size: {len(X_train)}")
         print(f"   Test set size: {len(X_test)}")
 
         # 7. Define and Train Model Pipeline
-        print("⚙️ Defining model pipeline (StandardScaler + RandomForest)...")
+        print(" Defining model pipeline (StandardScaler + RandomForest)...")
         pipeline = Pipeline([
             ('scaler', StandardScaler()), # Scale features
             ('classifier', RandomForestClassifier( # Train RandomForest
@@ -296,27 +296,27 @@ def train_model_task():
              ))
         ])
 
-        print("🚀 Training the model pipeline...")
+        print(" Training the model pipeline...")
         pipeline.fit(X_train, y_train)
-        print("✅ Training complete.")
+        print(" Training complete.")
 
         # 8. Evaluate Model on Test Set
-        print("\n📈 Evaluating model on the unseen test set...")
+        print("\n Evaluating model on the unseen test set...")
         y_pred_test = pipeline.predict(X_test)
-        print("\n📋 Classification Report (Test Set):")
+        print("\n Classification Report (Test Set):")
         # Ensure target names match your classes (0 and 1)
         print(classification_report(y_test, y_pred_test, target_names=['No Leak (0)', 'Leak (1)'], zero_division=0))
 
         # 9. Save the Trained Pipeline
-        print(f"\n💾 Saving the trained pipeline to {MODEL_FILENAME}...")
+        print(f"\n Saving the trained pipeline to {MODEL_FILENAME}...")
         joblib.dump(pipeline, MODEL_FILENAME)
-        print(f"✅ Model pipeline saved successfully.")
+        print(f" Model pipeline saved successfully.")
 
         # 10. Reload the newly trained model for immediate use
         load_model()
 
     except Exception as e:
-        print(f"❌ An error occurred during training: {e}")
+        print(f" An error occurred during training: {e}")
     finally:
         if db:
             db.close() # Ensure DB session is closed
@@ -326,19 +326,19 @@ def train_model_task():
 def on_connect(client, userdata, flags, rc):
     """Callback when MQTT connection is established."""
     if rc == 0:
-        print("🔌 Connected to MQTT Broker!")
+        print(" Connected to MQTT Broker!")
         res, _ = client.subscribe(MQTT_SUBSCRIBE_TOPICS) # Subscribe to list
         if res == mqtt.MQTT_ERR_SUCCESS:
-            print(f"👂 Subscribed to topics: {[t[0] for t in MQTT_SUBSCRIBE_TOPICS]}")
+            print(f" Subscribed to topics: {[t[0] for t in MQTT_SUBSCRIBE_TOPICS]}")
         else:
-            print(f"⚠️ Failed to subscribe to topics, error code: {res}")
+            print(f" Failed to subscribe to topics, error code: {res}")
     else:
-        print(f"❌ Failed to connect to MQTT, return code {rc}")
+        print(f" Failed to connect to MQTT, return code {rc}")
 
 def on_message(client, userdata, msg):
     """Callback when an MQTT message is received on a subscribed topic."""
     topic = msg.topic
-    print(f"\n📬 Message received on topic '{topic}'")
+    print(f"\n Message received on topic '{topic}'")
     db: Session | None = None
     try:
         payload_dict = json.loads(msg.payload.decode('utf-8'))
@@ -355,7 +355,7 @@ def on_message(client, userdata, msg):
             db.add(db_data)
             db.commit()
             db.refresh(db_data)
-            print(f"   💾 Saved data for collection (ID: {db_data.id})")
+            print(f"    Saved data for collection (ID: {db_data.id})")
 
         # --- Handle Data Prediction Topic ---
         elif topic == MQTT_TOPIC_PREDICTION:
@@ -371,15 +371,15 @@ def on_message(client, userdata, msg):
             db.add(db_prediction)
             db.commit()
             db.refresh(db_prediction)
-            print(f"   🎯 Saved prediction result (ID: {db_prediction.id}, Status: {status}, Prob: {probability:.3f})")
+            print(f"    Saved prediction result (ID: {db_prediction.id}, Status: {status}, Prob: {probability:.3f})")
 
         else:
-            print(f"   ⚠️ Received message on unhandled topic: {topic}")
+            print(f"    Received message on unhandled topic: {topic}")
 
     except json.JSONDecodeError:
-        print("   ❌ Error: Could not decode JSON from payload.")
+        print("    Error: Could not decode JSON from payload.")
     except Exception as e:
-        print(f"   ❌ An error occurred processing message: {e}")
+        print(f"    An error occurred processing message: {e}")
         if db:
             db.rollback() # Rollback DB changes on error
     finally:
@@ -391,31 +391,31 @@ def on_message(client, userdata, msg):
 async def startup_event():
     """Actions to perform when FastAPI starts."""
     global client
-    print("🚀 FastAPI application startup...")
+    print(" FastAPI application startup...")
     load_model() # Attempt to load existing model
-    print("🧠 Initialized ML model state.")
-    print("🔄 Setting up MQTT client...")
+    print(" Initialized ML model state.")
+    print(" Setting up MQTT client...")
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1) # Specify callback API version
     client.on_connect = on_connect
     client.on_message = on_message
     try:
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         client.loop_start() # Start MQTT network loop in background thread
-        print(f"🌀 MQTT client loop started, connecting to {MQTT_BROKER}...")
+        print(f" MQTT client loop started, connecting to {MQTT_BROKER}...")
     except Exception as e:
-        print(f"❌ Failed to connect MQTT client on startup: {e}")
+        print(f" Failed to connect MQTT client on startup: {e}")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Actions to perform when FastAPI shuts down."""
-    print("🛑 FastAPI application shutdown...")
+    print(" FastAPI application shutdown...")
     if 'client' in globals() and client.is_connected():
         client.loop_stop()
         client.disconnect()
         print("🔌 MQTT client disconnected.")
     else:
-        print("ℹ️ MQTT client was not connected.")
+        print(" MQTT client was not connected.")
 
 # --- API Endpoints ---
 
@@ -453,7 +453,7 @@ async def trigger_training(background_tasks: BackgroundTasks):
     Triggers the model training process in the background using data from the 'sensor_data' table.
     Requires LABELED data (is_leak=True/False) to be present.
     """
-    print("▶️ Received request to train model via API.")
+    print(" Received request to train model via API.")
     # Add the long-running task to FastAPI's background tasks
     background_tasks.add_task(train_model_task)
     return {"message": "Model training started in background. Check backend logs for progress.", "model_exists": os.path.exists(MODEL_FILENAME)}
@@ -462,7 +462,7 @@ async def trigger_training(background_tasks: BackgroundTasks):
 async def get_model_status():
     """Checks if a trained model file exists on the server."""
     exists = os.path.exists(MODEL_FILENAME)
-    message = "✅ Trained model file found." if exists else "⚠️ No trained model file found. Please train the model."
+    message = " Trained model file found." if exists else " No trained model file found. Please train the model."
     print(f"Checked model status: {'Exists' if exists else 'Not Found'}")
     return {"message": message, "model_exists": exists}
 
@@ -474,22 +474,22 @@ async def update_data_label(record_id: int, label_update: LabelUpdateRequest, db
     db_record = db.query(SensorData).filter(SensorData.id == record_id).first()
 
     if not db_record:
-        print(f"❌ Label update failed: Record ID {record_id} not found.")
+        print(f" Label update failed: Record ID {record_id} not found.")
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=f"Record with id {record_id} not found")
 
     # Only update if the label is actually changing
     if db_record.is_leak == label_update.is_leak:
-        print(f"ℹ️ Label for record ID {record_id} is already {label_update.is_leak}. No change made.")
+        print(f" Label for record ID {record_id} is already {label_update.is_leak}. No change made.")
         return db_record # Return existing record without commit
 
-    print(f"📝 Attempting to update label for record ID {record_id} to is_leak={label_update.is_leak}...")
+    print(f" Attempting to update label for record ID {record_id} to is_leak={label_update.is_leak}...")
     db_record.is_leak = label_update.is_leak
     try:
         db.commit() # Save changes to DB
         db.refresh(db_record) # Refresh object with DB state
-        print(f"✅ Successfully updated label for record ID {record_id}.")
+        print(f"Successfully updated label for record ID {record_id}.")
         return db_record
     except Exception as e:
         db.rollback() # Undo changes on error
-        print(f"❌ Error updating label for record ID {record_id}: {e}")
+        print(f" Error updating label for record ID {record_id}: {e}")
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error during label update.")
